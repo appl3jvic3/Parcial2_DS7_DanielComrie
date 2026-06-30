@@ -6,6 +6,10 @@ if (!isset($registros)) {
 if (!isset($estadisticas)) {
     $estadisticas = [];
 }
+
+// Incluir modelos necesarios para validación
+require_once __DIR__ . '/../models/Participante.php';
+require_once __DIR__ . '/../helpers/Validation.php';
 ?>
 
 <!DOCTYPE html>
@@ -54,7 +58,10 @@ if (!isset($estadisticas)) {
             </div>
         <?php endif; ?>
 
-        <!-- ... -->
+        <div class="actions-bar">
+            <a href="index.php" class="btn-info">🏠 Volver al Formulario</a>
+            <a href="index.php?action=exportar" class="btn-success">📥 Exportar a Excel</a>
+        </div>
 
         <div class="table-container">
             <table>
@@ -84,19 +91,33 @@ if (!isset($estadisticas)) {
                         <?php
                         $participante = new Participante();
                         foreach ($registros as $row):
+                            // Verificar integridad del registro
                             $esValido = $participante->verificarIntegridad($row);
 
-                            // Verificar cada campo individualmente
+                            // Verificar cada campo individualmente (usando los campos disponibles)
                             $camposValidos = true;
-                            if (!Validation::documento($row['documento_identidad'] ?? '')) $camposValidos = false;
-                            if (!Validation::requerido($row['primer_nombre'] ?? '')) $camposValidos = false;
-                            if (!Validation::email($row['correo_electronico'] ?? '')) $camposValidos = false;
-                            if (!Validation::telefono($row['telefono_movil'] ?? '')) $camposValidos = false;
-                            if (!Validation::genero($row['genero'] ?? '')) $camposValidos = false;
+
+                            // Para la vista, verificamos los campos que tenemos disponibles
+                            if (isset($row['documento_identidad']) && !Validation::documento($row['documento_identidad'])) {
+                                $camposValidos = false;
+                            }
+                            if (isset($row['correo_electronico']) && !Validation::email($row['correo_electronico'])) {
+                                $camposValidos = false;
+                            }
+                            if (isset($row['telefono_movil']) && !Validation::telefono($row['telefono_movil'])) {
+                                $camposValidos = false;
+                            }
+                            if (isset($row['genero']) && !Validation::genero($row['genero'])) {
+                                $camposValidos = false;
+                            }
 
                             $integro = ($esValido && $camposValidos);
                             $badgeClass = $integro ? 'verde' : 'rojo';
                             $badgeText = $integro ? '✅ Válido' : '❌ Inválido';
+
+                            // Determinar experiencia
+                            $tieneExperiencia = isset($row['experiencia_previa']) && $row['experiencia_previa'] == 1;
+                            $anosExp = isset($row['anos_experiencia']) ? $row['anos_experiencia'] : 0;
                         ?>
                             <tr>
                                 <td><?= htmlspecialchars($row['id_participante'] ?? '') ?></td>
@@ -108,17 +129,26 @@ if (!isset($estadisticas)) {
                                 <td><?= htmlspecialchars($row['continente'] ?? '') ?></td>
                                 <td><?= htmlspecialchars($row['correo_electronico'] ?? '') ?></td>
                                 <td><?= htmlspecialchars($row['telefono_movil'] ?? '') ?></td>
-                                <td><?= htmlspecialchars($row['temas_interes'] ?? 'Sin temas') ?></td>
                                 <td>
-                                    <?php if ($row['experiencia_previa'] ?? false): ?>
-                                        <span class="badge-experiencia"><?= $row['anos_experiencia'] ?? 0 ?> años</span>
+                                    <?php
+                                    $temas = isset($row['temas_interes']) ? $row['temas_interes'] : '';
+                                    echo htmlspecialchars($temas ?: 'Sin temas');
+                                    ?>
+                                </td>
+                                <td>
+                                    <?php if ($tieneExperiencia): ?>
+                                        <span class="badge-experiencia"><?= $anosExp ?> años</span>
                                     <?php else: ?>
                                         <span class="badge-sin-experiencia">Sin experiencia</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <span class="badge-estado badge-<?= strtolower(str_replace(' ', '-', $row['estado_participante'] ?? 'activo')) ?>">
-                                        <?= htmlspecialchars($row['estado_participante'] ?? 'Activo') ?>
+                                    <?php
+                                    $estado = isset($row['estado_participante']) ? $row['estado_participante'] : 'Activo';
+                                    $estadoClass = strtolower(str_replace(' ', '-', $estado));
+                                    ?>
+                                    <span class="badge-estado badge-<?= $estadoClass ?>">
+                                        <?= htmlspecialchars($estado) ?>
                                     </span>
                                 </td>
                                 <td><span class="badge badge-<?= $badgeClass ?>"><?= $badgeText ?></span></td>
@@ -129,7 +159,10 @@ if (!isset($estadisticas)) {
             </table>
         </div>
 
-        <!-- ... -->
+        <div class="footer-info">
+            <p>Total de registros: <?= count($registros) ?></p>
+            <p>© 2025 iTECH. All rights reserved. | Versión 2.0</p>
+        </div>
     </div>
 </body>
 

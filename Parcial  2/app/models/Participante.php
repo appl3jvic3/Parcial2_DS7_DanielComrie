@@ -4,7 +4,7 @@
 // =============================================
 
 require_once __DIR__ . '/Model.php';
-require_once __DIR__ . '/../config/database.php'; // Para asegurar SECRET_KEY
+require_once __DIR__ . '/../config/database.php';
 
 class Participante extends Model
 {
@@ -67,16 +67,79 @@ class Participante extends Model
         return $this->db->fetchAll($sql);
     }
 
+    /**
+     * Verificar integridad de un registro
+     * IMPORTANTE: Esta función recibe un registro de la vista reporte_completo_participantes
+     * que tiene campos diferentes a la tabla original
+     */
     public function verificarIntegridad($registro)
     {
         if (!defined('SECRET_KEY')) {
             define('SECRET_KEY', 'ClaveSuperSecreta2025ParaFirmaDigital');
         }
 
-        $datos = $registro['documento_identidad'] . $registro['primer_nombre'] . $registro['primer_apellido'] .
-            $registro['correo_electronico'] . $registro['telefono_movil'] . $registro['genero'];
+        // Verificar si el registro tiene los campos necesarios
+        // Para la vista reporte_completo_participantes, usamos los campos disponibles
+        if (
+            isset($registro['documento_identidad']) &&
+            isset($registro['correo_electronico']) &&
+            isset($registro['telefono_movil']) &&
+            isset($registro['genero']) &&
+            isset($registro['firma_digital'])
+        ) {
+
+            // Para registros de la vista, necesitamos obtener los nombres originales
+            // Si tenemos nombre_completo, lo dividimos para obtener primer_nombre y primer_apellido
+            $primer_nombre = '';
+            $primer_apellido = '';
+
+            if (isset($registro['nombre_completo'])) {
+                $partes = explode(' ', trim($registro['nombre_completo']));
+                $primer_nombre = $partes[0] ?? '';
+                // El apellido podría ser el último o una combinación
+                $primer_apellido = end($partes) ?? '';
+            }
+
+            // Si no tenemos nombre_completo, intentamos con los campos individuales
+            if (empty($primer_nombre) && isset($registro['primer_nombre'])) {
+                $primer_nombre = $registro['primer_nombre'];
+                $primer_apellido = $registro['primer_apellido'] ?? '';
+            }
+
+            // Construir datos para la firma
+            $datosFirma = ($registro['documento_identidad'] ?? '') .
+                $primer_nombre .
+                $primer_apellido .
+                ($registro['correo_electronico'] ?? '') .
+                ($registro['telefono_movil'] ?? '') .
+                ($registro['genero'] ?? '');
+
+            $firmaCalculada = hash_hmac('sha256', $datosFirma, SECRET_KEY);
+            return ($firmaCalculada === ($registro['firma_digital'] ?? ''));
+        }
+
+        // Si no tenemos todos los campos, devolvemos false
+        return false;
+    }
+
+    /**
+     * Verificar integridad para registros de la tabla original (no vista)
+     */
+    public function verificarIntegridadOriginal($registro)
+    {
+        if (!defined('SECRET_KEY')) {
+            define('SECRET_KEY', 'ClaveSuperSecreta2025ParaFirmaDigital');
+        }
+
+        $datos = ($registro['documento_identidad'] ?? '') .
+            ($registro['primer_nombre'] ?? '') .
+            ($registro['primer_apellido'] ?? '') .
+            ($registro['correo_electronico'] ?? '') .
+            ($registro['telefono_movil'] ?? '') .
+            ($registro['genero'] ?? '');
+
         $firmaCalculada = hash_hmac('sha256', $datos, SECRET_KEY);
-        return ($firmaCalculada === $registro['firma_digital']);
+        return ($firmaCalculada === ($registro['firma_digital'] ?? ''));
     }
 
     public function buscar($termino)
